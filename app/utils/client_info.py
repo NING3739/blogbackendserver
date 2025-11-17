@@ -34,17 +34,20 @@ class ClientInfoUtils:
         # 添加调试日志
         self.logger.info(f"收到的请求头😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂😂: {headers}")
 
-        # 优先检查 Cloudflare 的真实 IP header
+        # 将headers的key转换为小写,以便不区分大小写匹配
+        headers_lower = {k.lower(): v for k, v in headers.items()}
+
+        # 优先检查 Cloudflare 的真实 IP header (使用小写key)
         possible_headers = [
-            "CF-Connecting-IP",  # Cloudflare 真实客户端IP (最优先)
-            "True-Client-IP",     # Cloudflare Enterprise
-            "X-Forwarded-For",    # 标准代理header,取第一个IP
-            "X-Real-IP",          # Nginx等代理
-            "X-Client-IP",
+            "cf-connecting-ip",  # Cloudflare 真实客户端IP (最优先)
+            "true-client-ip",     # Cloudflare Enterprise
+            "x-forwarded-for",    # 标准代理header,取第一个IP
+            "x-real-ip",          # Nginx等代理
+            "x-client-ip",
         ]
 
         for header in possible_headers:
-            ip = headers.get(header)
+            ip = headers_lower.get(header)
             if ip and ip.lower() != "unknown":
                 ip = ip.split(",")[0].strip()
                 self.logger.info(f"从 {header} 解析出的IP: {ip}")
