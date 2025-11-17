@@ -5,6 +5,7 @@ import asyncio
 from app.models.user_model import RoleType, User
 from app.models.media_model import Media, MediaType
 from app.models.seo_model import Seo
+from app.models.tag_model import Tag
 from app.models.payment_model import Tax
 from app.models.section_model import Section, SectionType
 from app.models.board_model import Board
@@ -65,6 +66,124 @@ seo_data = [
         "chinese_keywords": "友链, 友情链接, 博客推荐, 创作者, 网站收藏",
         "english_keywords": "Blogroll, Links, Bloggers, Creators, Recommended Sites",
     }
+]
+
+tag_data = [
+    {
+        "chinese_title": "日常",
+        "english_title": "Daily",
+        "slug": "daily",
+    },
+    {
+        "chinese_title": "思考",
+        "english_title": "Thoughts",
+        "slug": "thoughts",
+    },
+    {
+        "chinese_title": "心情",
+        "english_title": "Mood",
+        "slug": "mood",
+    },
+    {
+        "chinese_title": "旅行",
+        "english_title": "Travel",
+        "slug": "travel",
+    },
+    {
+        "chinese_title": "摄影",
+        "english_title": "Photo",
+        "slug": "photo",
+    },
+    {
+        "chinese_title": "美食",
+        "english_title": "Food",
+        "slug": "food",
+    },
+    {
+        "chinese_title": "健身",
+        "english_title": "Fitness",
+        "slug": "fitness",
+    },
+    {
+        "chinese_title": "阅读",
+        "english_title": "Reading",
+        "slug": "reading",
+    },
+    {
+        "chinese_title": "影评",
+        "english_title": "Movies",
+        "slug": "movies",
+    },
+    {
+        "chinese_title": "家庭",
+        "english_title": "Family",
+        "slug": "family",
+    },
+    {
+        "chinese_title": "工作",
+        "english_title": "Work",
+        "slug": "work",
+    },
+    {
+        "chinese_title": "后端开发",
+        "english_title": "Backend",
+        "slug": "backend",
+    },
+    {
+        "chinese_title": "前端开发",
+        "english_title": "Frontend",
+        "slug": "frontend",
+    },
+    {
+        "chinese_title": "数据库",
+        "english_title": "Database",
+        "slug": "database",
+    },
+    {
+        "chinese_title": "部署",
+        "english_title": "Deploy",
+        "slug": "deploy",
+    },
+    {
+        "chinese_title": "容器化",
+        "english_title": "Container",
+        "slug": "container",
+    },
+    {
+        "chinese_title": "服务器运维",
+        "english_title": "Ops",
+        "slug": "ops",
+    },
+    {
+        "chinese_title": "性能优化",
+        "english_title": "Optimize",
+        "slug": "optimize",
+    },
+    {
+        "chinese_title": "系统架构",
+        "english_title": "Architecture",
+        "slug": "architecture",
+    },
+    {
+        "chinese_title": "代码重构",
+        "english_title": "Refactor",
+        "slug": "refactor",
+    },
+    {
+        "chinese_title": "开源项目",
+        "english_title": "Open-source",
+        "slug": "open-source",
+    },
+    {
+        "chinese_title": "项目实战",
+        "english_title": "Project",
+        "slug": "project",
+    },
+    {
+        "chinese_title": "调试技巧",
+        "english_title": "Debug",
+        "slug": "debug",
+    },
 ]
 
 user_data = [
@@ -495,6 +614,24 @@ async def insert_initial_data():
             logger.info(
                 f"⏭️  Table 'subscribers' has {count} records, skipping Subscriber data")
             skipped_tables.append(f"subscribers ({count} records)")
+
+        # 插入 Tag 数据
+        is_empty, count = check_table_empty("tags", db)
+        if is_empty and count != -1:
+            for tag in tag_data:
+                db.execute(insert(Tag).values(tag))
+            db.commit()
+            db.flush()
+            inserted_tables.append("tags")
+            logger.info("✅ Inserted Tag data")
+        elif count == -1:
+            logger.warning(
+                "⏭️  Table 'tags' does not exist, skipping Tag data")
+            skipped_tables.append("tags (table not found)")
+        else:
+            logger.info(
+                f"⏭️  Table 'tags' has {count} records, skipping Tag data")
+            skipped_tables.append(f"tags ({count} records)")
 
         # 总结
         if inserted_tables:

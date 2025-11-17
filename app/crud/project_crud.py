@@ -3,7 +3,7 @@ import hashlib
 from slugify import slugify
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple
-from fastapi import HTTPException, Depends, logger
+from fastapi import HTTPException, Depends
 from sqlalchemy import exists, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
