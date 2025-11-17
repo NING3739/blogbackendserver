@@ -17,13 +17,13 @@ services:
     # 注意：deploy.resources 仅在 Docker Swarm 模式下有效
     # 对于普通 docker-compose，通过 UVICORN_WORKERS 环境变量控制资源使用
     environment:
-      - UVICORN_WORKERS=4 # 2GB 内存服务器建议使用 3-4 workers
+      - UVICORN_WORKERS=2 # 2GB 内存服务器优化配置（MySQL/Redis 在其他服务器）
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://0.0.0.0:8000 || exit 1"]
       interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      timeout: 15s
+      retries: 5
+      start_period: 90s
     networks:
       - server_network
 
