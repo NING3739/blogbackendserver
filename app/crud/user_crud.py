@@ -275,6 +275,7 @@ class UserCrud:
 
         # 删除缓存
         await redis_manager.delete_pattern_async("admin_all_users:*")
+        await redis_manager.delete_async(f"user_profile_{user_id}")
 
         return True
 
