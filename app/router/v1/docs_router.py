@@ -28,9 +28,16 @@ async def get_api_documentation():
         docs_path = project_root / "README.md"
 
         if not docs_path.exists():
+            # 添加详细的调试信息
+            error_detail = (
+                f"API documentation file not found. "
+                f"Project root: {project_root}, "
+                f"README path: {docs_path}, "
+                f"Current file: {Path(__file__).resolve()}"
+            )
             raise HTTPException(
                 status_code=404,
-                detail="API documentation file not found"
+                detail=error_detail
             )
 
         with open(docs_path, "r", encoding="utf-8") as f:

@@ -26,6 +26,7 @@ ENV PATH="/server/.venv/bin:$PATH"
 
 # 复制项目文件
 COPY pyproject.toml uv.lock ./
+COPY README.md ./
 COPY app ./app
 # alembic 和 alembic.ini 通过 volume 挂载，不复制到镜像中
 COPY static ./static
