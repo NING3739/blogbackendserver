@@ -18,14 +18,14 @@ def get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent.parent
 
 
-@router.get("/api-documentation", response_class=PlainTextResponse)
+@router.get("/documentation", response_class=PlainTextResponse)
 async def get_api_documentation():
     """
-    获取API文档内容 (API_DOCUMENTATION.md)
+    获取API文档内容 (README.md)
     """
     try:
         project_root = get_project_root()
-        docs_path = project_root / "docs" / "API_DOCUMENTATION.md"
+        docs_path = project_root / "README.md"
 
         if not docs_path.exists():
             raise HTTPException(
