@@ -247,18 +247,25 @@ class BlogCrud:
 
         # 计算本月的博客数量
         if published_only is False:
-            current_month = datetime.now(timezone.utc).month
-            current_year = datetime.now(timezone.utc).year
+            now = datetime.now(timezone.utc)
+            month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+            if now.month == 12:
+                next_month_start = datetime(
+                    now.year + 1, 1, 1, tzinfo=timezone.utc)
+            else:
+                next_month_start = datetime(
+                    now.year, now.month + 1, 1, tzinfo=timezone.utc)
+
             count_this_month = await self.db.execute(
-                select(func.count(Blog.id)).where(Blog.created_at.between(datetime(
-                    current_year, current_month, 1), datetime(current_year, current_month + 1, 1)))
+                select(func.count(Blog.id)).where(
+                    Blog.created_at.between(month_start, next_month_start))
             )
             count_this_month = count_this_month.scalar_one_or_none()
 
             # 计算更新的博客数量
             count_updated = await self.db.execute(
-                select(func.count(Blog.id)).where(Blog.updated_at.between(datetime(
-                    current_year, current_month, 1), datetime(current_year, current_month + 1, 1)))
+                select(func.count(Blog.id)).where(
+                    Blog.updated_at.between(month_start, next_month_start))
             )
             count_updated = count_updated.scalar_one_or_none()
             pagination_metadata["new_items_this_month"] = count_this_month
@@ -936,7 +943,7 @@ class BlogCrud:
             await self.db.execute(
                 delete(Blog_Tag).where(Blog_Tag.blog_id == blog.id)
             )
-            
+
             # 插入新标签
             for tag_id in blog_tags:
                 await self.db.execute(
@@ -1590,11 +1597,20 @@ class BlogCrud:
         )
 
         # 计算本月收藏的博客数量
-        current_month = datetime.now(timezone.utc).month
-        current_year = datetime.now(timezone.utc).year
+        now = datetime.now(timezone.utc)
+        month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+        if now.month == 12:
+            next_month_start = datetime(
+                now.year + 1, 1, 1, tzinfo=timezone.utc)
+        else:
+            next_month_start = datetime(
+                now.year, now.month + 1, 1, tzinfo=timezone.utc)
+
         count_this_month = await self.db.execute(
-            select(func.count(Saved_Blog.id)).where(Saved_Blog.created_at.between(datetime(
-                current_year, current_month, 1), datetime(current_year, current_month + 1, 1)), Saved_Blog.user_id == user_id)
+            select(func.count(Saved_Blog.id)).where(
+                Saved_Blog.created_at.between(month_start, next_month_start),
+                Saved_Blog.user_id == user_id
+            )
         )
         count_this_month = count_this_month.scalar_one_or_none()
         pagination_metadata["new_items_this_month"] = count_this_month

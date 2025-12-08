@@ -299,15 +299,16 @@ class PaymentCrud:
         )
 
         # 本月新增支付记录数量
-        current_year = datetime.now().year
-        current_month = datetime.now().month
+        now = datetime.now()
+        month_start = datetime(now.year, now.month, 1)
+        if now.month == 12:
+            next_month_start = datetime(now.year + 1, 1, 1)
+        else:
+            next_month_start = datetime(now.year, now.month + 1, 1)
 
         # 构建本月统计的查询条件
         monthly_conditions = [
-            Payment_Record.created_at.between(
-                datetime(current_year, current_month, 1),
-                datetime(current_year, current_month + 1, 1)
-            )
+            Payment_Record.created_at.between(month_start, next_month_start)
         ]
 
         # 如果有用户ID，则只统计该用户的记录

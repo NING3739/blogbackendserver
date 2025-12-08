@@ -235,17 +235,26 @@ cd ..
 7. **启动开发服务器**
 
 ```bash
-# 设置环境变量
+# 方法 1：使用 python -m 启动（推荐用于开发调试）
 export ENV=development
-
-# 启动 FastAPI 应用
 uv run python -m app.main
 
-# 在另一个终端启动 Celery Worker
-uv run celery -A app.core.celery.celery_manager.celery_app worker --loglevel=info
+# 方法 2：使用 uvicorn 直接启动（更灵活）
+ENV=development uv run uvicorn app.main:app \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --reload \
+  --ssl-keyfile certs/localhost-key.pem \
+  --ssl-certfile certs/localhost.pem
 
-# 启动 Celery Beat（定时任务）
-uv run celery -A app.core.celery.celery_manager.celery_app beat --loglevel=info
+# 启动 Celery Worker（在新终端窗口中）
+ENV=development uv run celery -A app.core.celery:celery_app worker --loglevel=info
+
+# 启动 Celery Beat（定时任务调度器，在新终端窗口中）
+ENV=development uv run celery -A app.core.celery:celery_app beat --loglevel=info
+
+# 或同时启动 Worker 和 Beat
+ENV=development uv run celery -A app.core.celery:celery_app worker --beat --loglevel=info
 ```
 
 8. **访问应用**
@@ -563,13 +572,13 @@ uv run alembic history
 
 ```bash
 # 启动 Worker
-uv run celery -A app.core.celery.celery_manager.celery_app worker --loglevel=info
+ENV=development uv run celery -A app.core.celery:celery_app worker --loglevel=info
 
 # 启动 Beat 调度器
-uv run celery -A app.core.celery.celery_manager.celery_app beat --loglevel=info
+ENV=development uv run celery -A app.core.celery:celery_app beat --loglevel=info
 
 # 同时启动 Worker 和 Beat
-uv run celery -A app.core.celery.celery_manager.celery_app worker --beat --loglevel=info
+ENV=development uv run celery -A app.core.celery:celery_app worker --beat --loglevel=info
 ```
 
 ### 监控任务
@@ -577,7 +586,7 @@ uv run celery -A app.core.celery.celery_manager.celery_app worker --beat --logle
 ```bash
 # 使用 Flower 监控（需要添加到依赖）
 uv add flower
-uv run celery -A app.core.celery.celery_manager.celery_app flower
+ENV=development uv run celery -A app.core.celery:celery_app flower
 ```
 
 访问 http://localhost:5555 查看任务监控面板。

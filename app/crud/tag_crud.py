@@ -69,18 +69,25 @@ class TagCrud:
         )
 
         # 计算本月新增的tag数量
-        current_month = datetime.now(timezone.utc).month
-        current_year = datetime.now(timezone.utc).year
+        now = datetime.now(timezone.utc)
+        month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+        if now.month == 12:
+            next_month_start = datetime(
+                now.year + 1, 1, 1, tzinfo=timezone.utc)
+        else:
+            next_month_start = datetime(
+                now.year, now.month + 1, 1, tzinfo=timezone.utc)
+
         count_this_month = await self.db.execute(
-            select(func.count(Tag.id)).where(Tag.created_at.between(datetime(
-                current_year, current_month, 1), datetime(current_year, current_month + 1, 1)))
+            select(func.count(Tag.id)).where(
+                Tag.created_at.between(month_start, next_month_start))
         )
         count_this_month = count_this_month.scalar_one_or_none()
 
         # 计算本月更新的tag数量
         count_updated = await self.db.execute(
-            select(func.count(Tag.id)).where(Tag.updated_at.between(datetime(
-                current_year, current_month, 1), datetime(current_year, current_month + 1, 1)))
+            select(func.count(Tag.id)).where(
+                Tag.updated_at.between(month_start, next_month_start))
         )
         count_updated = count_updated.scalar_one_or_none()
 
