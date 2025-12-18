@@ -55,12 +55,12 @@ def generate_image_thumbnail(
             # 非正方形时仅缩放以适配目标盒子，保持比例
             vf_core = f"scale={width}:{height}:force_original_aspect_ratio=decrease"
 
-        # 统一色彩范围（full -> limited）后再缩放/裁剪，最后转换为 yuv420p。
-        # 注意：必须在转换为 yuv420p 之前确保宽高为偶数，否则会触发“image dimensions must be divisible by subsampling factor”。
+        # 先确保尺寸为偶数（zscale 需要），再统一色彩范围，最后缩放/裁剪并转换格式
         vf_option = (
+            f"scale=trunc(iw/2)*2:trunc(ih/2)*2,"  # 先确保偶数
             f"zscale=rangein=full:range=limited,"
             f"{vf_core},"
-            f"scale=trunc(iw/2)*2:trunc(ih/2)*2,"
+            f"scale=trunc(iw/2)*2:trunc(ih/2)*2,"  # 再次确保偶数
             f"format=yuv420p"
         )
 

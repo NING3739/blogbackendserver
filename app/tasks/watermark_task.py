@@ -1,7 +1,6 @@
 import os
 import subprocess
 import tempfile
-import math
 from pathlib import Path
 from typing import Union, List
 from app.core.celery import celery_app, with_db_init
@@ -17,18 +16,18 @@ def generate_image_watermark(
     input_paths: Union[str, Path, List[Union[str, Path]]],
     output_dir: Union[str, Path],
     text: str,
-    font_size: int = 60,
+    font_size: int = 36,
     font_color: str = "white",
-    opacity: float = 0.08,
+    opacity: float = 0.6,
 ):
     """
-    为图片添加文字水印并转换为 WebP，支持单个文件或文件列表。
+    为图片添加右上角文字水印并转换为 WebP，支持单个文件或文件列表。
 
     Args:
         input_paths: 单个文件路径或文件列表
         output_dir: 输出文件夹
         text: 水印文字内容
-        font_size: 字体大小（默认更大）
+        font_size: 字体大小
         font_color: 字体颜色
         opacity: 透明度 (0.0-1.0)
     """
@@ -53,9 +52,9 @@ def generate_image_watermark(
         # 转换为 WebP 格式，添加水印
         output_file = output_dir / f"{file_path.stem}_watermark.webp"
 
-        # 动态计算字号与颜色（取反色）、不透明度
-        # 1) 尺寸（更大以便可见）
+        # 获取图片尺寸，动态计算字体大小
         fsize = font_size
+        w, h = 1920, 1080  # 默认值
         try:
             cmd = [
                 "ffprobe",
@@ -69,7 +68,8 @@ def generate_image_watermark(
                 "csv=p=0",
                 str(file_path),
             ]
-            res = subprocess.run(cmd, check=True, capture_output=True)
+            res = subprocess.run(
+                cmd, check=True, capture_output=True, timeout=10)
             out = res.stdout.decode().strip()
             if out:
                 w_h = out.split(",")
@@ -77,27 +77,19 @@ def generate_image_watermark(
                     w = int(w_h[0])
                     h = int(w_h[1])
                     if w > 0 and h > 0:
-                        dyn = int(min(w, h) * 0.06)
+                        # 根据图片尺寸动态调整字体大小（约为短边的3%）
+                        dyn = int(min(w, h) * 0.03)
                         fsize = max(dyn, font_size)
-                    else:
-                        w, h = 1920, 1080
-                else:
-                    w, h = 1920, 1080
-            else:
-                w, h = 1920, 1080
         except Exception:
-            # 合理默认尺寸，防止后续计算异常
-            w, h = 1920, 1080
-            dyn = int(min(w, h) * 0.06)
-            fsize = max(dyn, font_size)
+            pass
 
-        # 2) 右下角区域平均色采样并取反
+        # 采样右上角区域颜色，计算对比色
         fcolor = font_color
         falpha = opacity
         try:
             crop = (
                 "scale=trunc(iw/2)*2:trunc(ih/2)*2,format=rgb24,"
-                "crop=iw*0.25:ih*0.18:iw-iw*0.25-10:ih-ih*0.18-10,scale=1:1"
+                "crop=iw*0.25:ih*0.18:10:10,scale=1:1"
             )
             cmd = [
                 "ffmpeg",
@@ -115,114 +107,61 @@ def generate_image_watermark(
                 "rgb24",
                 "-",
             ]
-            res = subprocess.run(cmd, check=True, capture_output=True)
+            res = subprocess.run(
+                cmd, check=True, capture_output=True, timeout=10)
             data = res.stdout
             if len(data) >= 3:
                 sr, sg, sb = data[0], data[1], data[2]
                 inv_r, inv_g, inv_b = 255 - sr, 255 - sg, 255 - sb
                 fcolor = f"0x{inv_r:02x}{inv_g:02x}{inv_b:02x}"
-                # 更透明但可见
                 brightness = (0.299 * sr + 0.587 * sg + 0.114 * sb) / 255.0
                 if brightness >= 0.7:
-                    falpha = 0.10  # 亮背景，最透明
+                    falpha = 0.50  # 亮背景
                 elif brightness >= 0.4:
-                    falpha = 0.15  # 中等背景，稍微明显一点
+                    falpha = 0.60  # 中等背景
                 else:
-                    falpha = 0.18  # 暗背景，相对明显一点
+                    falpha = 0.70  # 暗背景
         except Exception:
             pass
 
-        # 构建平铺网格文本，写入临时文本文件，避免过滤器转义问题
-        try:
-            # 扩大画布以避免旋转后出现空白
-            diag = int(math.hypot(w, h))
-            canvas_side = max(64, int(diag * 1.4))
-            canvas_w, canvas_h = canvas_side, canvas_side
+        # 转义文本中的特殊字符
+        escaped_text = input_text.replace("\\", "\\\\").replace(
+            ":", "\\:").replace("'", "\\'")
 
-            approx_char_w = max(int(fsize * 0.55), 1)
-            text_len = max(len(input_text), 1)
-            col_gap_px = int(fsize * 0.6)
-            tile_w_px = text_len * approx_char_w + col_gap_px
-            cols = max(int(math.ceil(canvas_w / max(tile_w_px, 1))) + 4, 2)
-            line_spacing = int(fsize * 0.2)
-            rows = max(
-                int(math.ceil(canvas_h / max(fsize + line_spacing, 1))) + 4, 2)
-
-            # 将像素级间距换算为空格数量（近似）
-            gap_spaces = max(int(col_gap_px / approx_char_w), 1)
-            col_sep = " " * gap_spaces
-            one_row = (input_text + col_sep) * cols
-            grid_lines = [one_row for _ in range(rows)]
-            grid_text = "\n".join(grid_lines)
-
-            # 写入临时文件
-            with tempfile.NamedTemporaryFile(
-                delete=False,
-                suffix=".txt",
-                prefix="wm_txt_",
-                mode="w",
-                encoding="utf-8",
-            ) as tf:
-                tf.write(grid_text)
-                pattern_path = tf.name
-        except Exception:
-            # 回退为原始文本（单行）
-            with tempfile.NamedTemporaryFile(
-                delete=False,
-                suffix=".txt",
-                prefix="wm_txt_",
-                mode="w",
-                encoding="utf-8",
-            ) as tf:
-                tf.write(input_text or "")
-                pattern_path = tf.name
-            # 回退画布与行距
-            canvas_w, canvas_h = w, h
-            line_spacing = int(fsize * 0.2)
-
-        # 使用 filter_complex 构建透明背景 + 文本 + 旋转 + 覆盖
-        # 使用简化的处理流程，避免不必要的格式转换
-        # 透明背景扩大以覆盖旋转后的边角，文本平铺，旋转 45 度
+        # 简化 filter：直接在右上角添加水印文字
         filter_complex = (
-            f"[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2:flags=lanczos[base];"
-            f"color=c=black@0.0:s={canvas_w}x{canvas_h}[bg];"
-            f"[bg]format=rgba,drawtext=textfile={pattern_path}:fontsize={fsize}:fontcolor={fcolor}:alpha={falpha}:line_spacing={line_spacing}:x=0:y=0:fix_bounds=1,"
-            f"rotate=45*PI/180:out_w=rotw(iw):out_h=roth(ih):fillcolor=black@0.0[wm];"
-            f"[base][wm]overlay=x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2:shortest=1[vout]"
+            f"drawtext=text='{escaped_text}':"
+            f"fontsize={fsize}:"
+            f"fontcolor={fcolor}@{falpha}:"
+            f"x=w-tw-10:y=10"  # 右上角：距离右边10px，距离顶部10px
         )
 
         command = [
             "ffmpeg",
-            "-hide_banner",  # 隐藏 FFmpeg 版本信息
+            "-hide_banner",
             "-loglevel",
-            "warning",  # 只显示警告和错误
+            "warning",
             "-i",
             str(file_path),
-            "-filter_complex",
+            "-vf",
             filter_complex,
-            "-map",
-            "[vout]",
             "-c:v",
-            "libwebp",  # 强制输出 WebP
+            "libwebp",
             "-q:v",
-            "80",  # 质量
+            "85",  # 高质量 WebP
             "-frames:v",
             "1",
-            "-y",  # 覆盖输出
+            "-y",
             str(output_file),
         ]
 
         try:
-            subprocess.run(command, check=True)
+            subprocess.run(command, check=True, timeout=60)
             logger.info(f"添加图片水印成功: {output_file}")
+        except subprocess.TimeoutExpired:
+            logger.error(f"添加图片水印超时: {file_path}")
         except subprocess.CalledProcessError as e:
             logger.error(f"添加图片水印失败: {file_path}, 错误: {e}")
-        finally:
-            try:
-                if "pattern_path" in locals() and os.path.exists(pattern_path):
-                    os.remove(pattern_path)
-            except Exception:
-                pass
 
 
 def generate_video_watermark(
