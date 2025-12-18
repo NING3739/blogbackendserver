@@ -236,7 +236,8 @@ def generate_video_watermark(
     duration: float = None,
 ):
     """
-    为视频添加文字水印并转换为 WebM，支持单个视频或视频列表。
+    为视频添加文字水印并转换为 MP4，支持单个视频或视频列表。
+    优化版本：水印位于右上角，处理速度更快。
 
     Args:
         input_paths: 单个视频路径或视频列表
@@ -273,8 +274,9 @@ def generate_video_watermark(
         # 采样时间靠近 start_time，默认 0.5s
         sample_t = start_time if start_time and start_time > 0 else 0.5
 
-        # 1) 尺寸（更大以便可见）
+        # 1) 获取视频尺寸并计算字体大小
         fsize = font_size
+        w, h = 1920, 1080  # 默认值
         try:
             cmd = [
                 "ffprobe",
@@ -288,7 +290,8 @@ def generate_video_watermark(
                 "csv=p=0",
                 str(file_path),
             ]
-            res = subprocess.run(cmd, check=True, capture_output=True)
+            res = subprocess.run(
+                cmd, check=True, capture_output=True, timeout=10)
             out = res.stdout.decode().strip()
             if out:
                 w_h = out.split(",")
@@ -296,7 +299,8 @@ def generate_video_watermark(
                     w = int(w_h[0])
                     h = int(w_h[1])
                     if w > 0 and h > 0:
-                        dyn = int(min(w, h) * 0.06)
+                        # 根据视频尺寸动态调整字体大小（约为高度的3-4%）
+                        dyn = int(min(w, h) * 0.04)
                         fsize = max(dyn, font_size)
                     else:
                         w, h = 1920, 1080
@@ -306,16 +310,17 @@ def generate_video_watermark(
                 w, h = 1920, 1080
         except Exception:
             w, h = 1920, 1080
-            dyn = int(min(w, h) * 0.06)
+            dyn = int(min(w, h) * 0.04)
             fsize = max(dyn, font_size)
 
-        # 2) 右下角区域平均色采样并取反
+        # 2) 右上角区域平均色采样并取反（用于确定水印颜色）
         fcolor = font_color
         falpha = opacity
         try:
+            # 采样右上角区域（宽度25%，高度18%）
             crop = (
                 "scale=trunc(iw/2)*2:trunc(ih/2)*2,format=rgb24,"
-                "crop=iw*0.25:ih*0.18:iw-iw*0.25-10:ih-ih*0.18-10,scale=1:1"
+                "crop=iw*0.25:ih*0.18:10:10,scale=1:1"
             )
             cmd = [
                 "ffmpeg",
@@ -335,7 +340,8 @@ def generate_video_watermark(
                 "rgb24",
                 "-",
             ]
-            res = subprocess.run(cmd, check=True, capture_output=True)
+            res = subprocess.run(
+                cmd, check=True, capture_output=True, timeout=10)
             data = res.stdout
             if len(data) >= 3:
                 sr, sg, sb = data[0], data[1], data[2]
@@ -343,55 +349,14 @@ def generate_video_watermark(
                 fcolor = f"0x{inv_r:02x}{inv_g:02x}{inv_b:02x}"
                 brightness = (0.299 * sr + 0.587 * sg + 0.114 * sb) / 255.0
                 if brightness >= 0.7:
-                    falpha = 0.18  # 亮背景，视频需要稍微明显
+                    falpha = 0.20  # 亮背景，稍微明显
                 elif brightness >= 0.4:
-                    falpha = 0.22  # 中等背景，适中透明度
+                    falpha = 0.25  # 中等背景，适中透明度
                 else:
-                    falpha = 0.25  # 暗背景，相对明显一点
+                    falpha = 0.30  # 暗背景，相对明显一点
         except Exception:
+            # 如果采样失败，使用默认值
             pass
-
-        # 构建平铺网格文本，写入临时文本文件
-        line_spacing = int(fsize * 0.2)
-        try:
-            diag = int(math.hypot(w, h))
-            canvas_side = max(64, int(diag * 1.4))
-            canvas_w, canvas_h = canvas_side, canvas_side
-
-            approx_char_w = max(int(fsize * 0.55), 1)
-            text_len = max(len(input_text), 1)
-            col_gap_px = int(fsize * 0.6)
-            tile_w_px = text_len * approx_char_w + col_gap_px
-            cols = max(int(math.ceil((canvas_w) / max(tile_w_px, 1))) + 4, 2)
-            rows = max(
-                int(math.ceil((canvas_h) / max(fsize + line_spacing, 1))) + 4, 2)
-
-            gap_spaces = max(int(col_gap_px / approx_char_w), 1)
-            col_sep = " " * gap_spaces
-            one_row = (input_text + col_sep) * cols
-            grid_lines = [one_row for _ in range(rows)]
-            grid_text = "\n".join(grid_lines)
-
-            with tempfile.NamedTemporaryFile(
-                delete=False,
-                suffix=".txt",
-                prefix="wm_txt_",
-                mode="w",
-                encoding="utf-8",
-            ) as tf:
-                tf.write(grid_text)
-                pattern_path = tf.name
-        except Exception:
-            with tempfile.NamedTemporaryFile(
-                delete=False,
-                suffix=".txt",
-                prefix="wm_txt_",
-                mode="w",
-                encoding="utf-8",
-            ) as tf:
-                tf.write(input_text or "")
-                pattern_path = tf.name
-            canvas_w, canvas_h = w, h
 
         # 覆盖区间控制
         enable_expr = (
@@ -401,36 +366,35 @@ def generate_video_watermark(
         # 计算720p缩放尺寸（保持宽高比，高度限制为720）
         # 如果原始高度小于720，则不缩放
         target_h = min(h, 720)
-        # 确保宽度为偶数
-        scale_expr = f"scale=-2:{target_h}:flags=lanczos"
-
-        # 重新计算水印画布尺寸（基于720p）
-        scaled_w = int(w * target_h / h) if h > 0 else w
-        scaled_h = target_h
-        diag_scaled = int(math.hypot(scaled_w, scaled_h))
-        canvas_side_scaled = max(64, int(diag_scaled * 1.4))
+        # 确保宽度为偶数（H.264要求）
+        scale_expr = f"scale=-2:{target_h}:flags=fast_bilinear"
 
         # 调整字体大小适配720p
         fsize_scaled = max(int(fsize * target_h / h), 30) if h > 0 else fsize
 
-        # 使用 filter_complex 叠加平铺旋转文本
-        # 先缩放到720p，再添加水印，减小文件体积并加快编码速度
+        # 计算右上角位置（距离右边和顶部各10像素）
+        # 使用 drawtext 直接在右上角绘制，无需复杂的 overlay
+        # 简化 filter：直接缩放并添加右上角水印，无需旋转和平铺
+        # 转义文本中的特殊字符，避免 ffmpeg 命令解析错误
+        escaped_text = input_text.replace("\\", "\\\\").replace(
+            ":", "\\:").replace("'", "\\'")
         filter_complex = (
-            f"[0:v]{scale_expr}[scaled];"
-            f"[scaled]scale=trunc(iw/2)*2:trunc(ih/2)*2:flags=lanczos[base];"
-            f"color=c=black@0.0:s={canvas_side_scaled}x{canvas_side_scaled}[bg];"
-            f"[bg]format=rgba,drawtext=textfile={pattern_path}:fontsize={fsize_scaled}:fontcolor={fcolor}:alpha={falpha}:line_spacing={line_spacing}:x=0:y=0:fix_bounds=1,"
-            f"rotate=45*PI/180:out_w=rotw(iw):out_h=roth(ih):fillcolor=black@0.0[wm];"
-            f"[base][wm]overlay=x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2:enable='{enable_expr}':shortest=1[vout]"
+            f"[0:v]{scale_expr},"
+            f"scale=trunc(iw/2)*2:trunc(ih/2)*2:flags=fast_bilinear,"
+            f"drawtext=text='{escaped_text}':"
+            f"fontsize={fsize_scaled}:"
+            f"fontcolor={fcolor}@{falpha}:"
+            f"x=w-tw-10:y=10:"  # 右上角位置：距离右边10px，距离顶部10px
+            f"enable='{enable_expr}'[vout]"
         )
 
         command = [
             "ffmpeg",
-            "-hide_banner",  # 隐藏 FFmpeg 版本信息
+            "-hide_banner",
             "-loglevel",
-            "warning",  # 只显示警告和错误
+            "warning",
             "-threads",
-            "2",  # H.264 可以用 2 线程，仍然省内存
+            "2",  # 2线程，适合2 vCPU服务器
             "-i",
             str(file_path),
             "-filter_complex",
@@ -438,40 +402,40 @@ def generate_video_watermark(
             "-map",
             "[vout]",
             "-map",
-            "0:a?",
+            "0:a?",  # 如果有音频流则映射
             "-c:v",
-            "libx264",  # H.264 编码，速度快 5-10 倍
+            "libx264",
             "-preset",
-            "veryfast",  # 快速编码，质量仍然不错
+            "ultrafast",  # 使用ultrafast以最快速度编码（在2GB RAM限制下）
             "-crf",
-            "23",  # H.264 的 CRF 23 质量很好
+            "24",  # CRF 24 质量仍然很好，但编码更快
             "-profile:v",
-            "high",  # 高质量 profile
+            "baseline",  # baseline profile 编码更快，兼容性更好
             "-level",
-            "4.1",  # 兼容性好
+            "3.1",  # 降低level以加快编码
             "-movflags",
-            "+faststart",  # 优化网页播放，元数据前置
+            "+faststart",  # 优化网页播放
             "-pix_fmt",
-            "yuv420p",  # 最大兼容性
+            "yuv420p",
             "-c:a",
-            "aac",  # AAC 音频编码
+            "aac",
             "-b:a",
-            "128k",  # 音频码率
-            "-y",  # 覆盖输出
+            "96k",  # 降低音频码率以节省处理时间
+            "-ac",
+            "2",  # 立体声
+            "-ar",
+            "44100",  # 标准采样率
+            "-y",
             str(output_file),
         ]
 
         try:
-            subprocess.run(command, check=True)
+            subprocess.run(command, check=True, timeout=3600)  # 1小时超时
             logger.info(f"添加视频水印成功: {output_file}")
+        except subprocess.TimeoutExpired:
+            logger.error(f"添加视频水印超时: {file_path}")
         except subprocess.CalledProcessError as e:
             logger.error(f"添加视频水印失败: {file_path}, 错误: {e}")
-        finally:
-            try:
-                if "pattern_path" in locals() and os.path.exists(pattern_path):
-                    os.remove(pattern_path)
-            except Exception:
-                pass
 
 
 @celery_app.task(
