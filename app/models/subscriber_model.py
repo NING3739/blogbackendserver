@@ -19,6 +19,12 @@ class Subscriber(SQLModel, table=True):
         nullable=True,
         sa_type=TIMESTAMP,
     )  # 用户取消订阅时间
+    send_count: int = Field(default=0, nullable=False)  # 已发送邮件数量
+    send_at: Optional[datetime] = Field(
+        default=None,
+        nullable=True,
+        sa_type=TIMESTAMP,
+    )  # 上次发送邮件时间
 
     def __str__(self):
         return f"Subscriber(id={self.id}, email={self.email}, is_active={self.is_active})"
