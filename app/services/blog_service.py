@@ -232,7 +232,13 @@ class BlogService:
             language=language, ip_address=ip_address,
         )
 
-    async def delete_blog(self, blog_id: int, language: Language) -> bool:
+    async def delete_blog(self, blog_id: int, language: Language, role: RoleType) -> bool:
+
+        if role != RoleType.admin:
+            raise HTTPException(
+                status_code=403,
+                detail=get_message("common.insufficientPermissions", language),
+            )
         return await self.blog_crud.delete_blog(
             blog_id=blog_id,
             language=language,
