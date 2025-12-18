@@ -210,7 +210,8 @@ def generate_image_thumbnail_task(
         s3_keys = []
 
         for file_path in source_inputs:
-            thumbnail_file = local_output_dir / f"{file_path.stem}_thumbnail.webp"
+            thumbnail_file = local_output_dir / \
+                f"{file_path.stem}_thumbnail.webp"
             if thumbnail_file.exists():
                 thumbnail_paths.append(str(thumbnail_file))
                 # 生成S3键：使用调用方传入的S3前缀
@@ -298,7 +299,8 @@ def generate_video_thumbnail_task(
         s3_keys = []
 
         for file_path in source_inputs:
-            thumbnail_file = local_output_dir / f"{file_path.stem}_thumbnail.webm"
+            thumbnail_file = local_output_dir / \
+                f"{file_path.stem}_thumbnail.webm"
             if thumbnail_file.exists():
                 thumbnail_paths.append(str(thumbnail_file))
                 # 生成S3键：使用调用方传入的S3前缀

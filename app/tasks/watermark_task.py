@@ -145,7 +145,8 @@ def generate_image_watermark(
             tile_w_px = text_len * approx_char_w + col_gap_px
             cols = max(int(math.ceil(canvas_w / max(tile_w_px, 1))) + 4, 2)
             line_spacing = int(fsize * 0.2)
-            rows = max(int(math.ceil(canvas_h / max(fsize + line_spacing, 1))) + 4, 2)
+            rows = max(
+                int(math.ceil(canvas_h / max(fsize + line_spacing, 1))) + 4, 2)
 
             # 将像素级间距换算为空格数量（近似）
             gap_spaces = max(int(col_gap_px / approx_char_w), 1)
@@ -362,7 +363,8 @@ def generate_video_watermark(
             col_gap_px = int(fsize * 0.6)
             tile_w_px = text_len * approx_char_w + col_gap_px
             cols = max(int(math.ceil((canvas_w) / max(tile_w_px, 1))) + 4, 2)
-            rows = max(int(math.ceil((canvas_h) / max(fsize + line_spacing, 1))) + 4, 2)
+            rows = max(
+                int(math.ceil((canvas_h) / max(fsize + line_spacing, 1))) + 4, 2)
 
             gap_spaces = max(int(col_gap_px / approx_char_w), 1)
             col_sep = " " * gap_spaces
@@ -519,7 +521,8 @@ def generate_image_watermark_task(
         s3_keys = []
 
         for file_path in source_inputs:
-            watermark_file = local_output_dir / f"{file_path.stem}_watermark.webp"
+            watermark_file = local_output_dir / \
+                f"{file_path.stem}_watermark.webp"
             if watermark_file.exists():
                 watermark_paths.append(str(watermark_file))
                 # 生成S3键：使用调用方传入的S3前缀
@@ -620,7 +623,8 @@ def generate_video_watermark_task(
         s3_keys = []
 
         for file_path in source_inputs:
-            watermark_file = local_output_dir / f"{file_path.stem}_watermark.webm"
+            watermark_file = local_output_dir / \
+                f"{file_path.stem}_watermark.webm"
             if watermark_file.exists():
                 watermark_paths.append(str(watermark_file))
                 # 生成S3键：使用调用方传入的S3前缀
