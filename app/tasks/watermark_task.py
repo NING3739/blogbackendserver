@@ -396,12 +396,28 @@ def generate_video_watermark(
             f"between(t,{start_time},{start_time + (duration if duration else 999999)})"
         )
 
+        # 计算720p缩放尺寸（保持宽高比，高度限制为720）
+        # 如果原始高度小于720，则不缩放
+        target_h = min(h, 720)
+        # 确保宽度为偶数
+        scale_expr = f"scale=-2:{target_h}:flags=lanczos"
+
+        # 重新计算水印画布尺寸（基于720p）
+        scaled_w = int(w * target_h / h) if h > 0 else w
+        scaled_h = target_h
+        diag_scaled = int(math.hypot(scaled_w, scaled_h))
+        canvas_side_scaled = max(64, int(diag_scaled * 1.4))
+
+        # 调整字体大小适配720p
+        fsize_scaled = max(int(fsize * target_h / h), 30) if h > 0 else fsize
+
         # 使用 filter_complex 叠加平铺旋转文本
-        # 使用简化的处理流程，避免不必要的格式转换
+        # 先缩放到720p，再添加水印，减小文件体积并加快编码速度
         filter_complex = (
-            f"[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2:flags=lanczos[base];"
-            f"color=c=black@0.0:s={canvas_w}x{canvas_h}[bg];"
-            f"[bg]format=rgba,drawtext=textfile={pattern_path}:fontsize={fsize}:fontcolor={fcolor}:alpha={falpha}:line_spacing={line_spacing}:x=0:y=0:fix_bounds=1,"
+            f"[0:v]{scale_expr}[scaled];"
+            f"[scaled]scale=trunc(iw/2)*2:trunc(ih/2)*2:flags=lanczos[base];"
+            f"color=c=black@0.0:s={canvas_side_scaled}x{canvas_side_scaled}[bg];"
+            f"[bg]format=rgba,drawtext=textfile={pattern_path}:fontsize={fsize_scaled}:fontcolor={fcolor}:alpha={falpha}:line_spacing={line_spacing}:x=0:y=0:fix_bounds=1,"
             f"rotate=45*PI/180:out_w=rotw(iw):out_h=roth(ih):fillcolor=black@0.0[wm];"
             f"[base][wm]overlay=x=(main_w-overlay_w)/2:y=(main_h-overlay_h)/2:enable='{enable_expr}':shortest=1[vout]"
         )
@@ -411,6 +427,8 @@ def generate_video_watermark(
             "-hide_banner",  # 隐藏 FFmpeg 版本信息
             "-loglevel",
             "warning",  # 只显示警告和错误
+            "-threads",
+            "1",  # 限制线程数，减少内存占用（2GB RAM服务器）
             "-i",
             str(file_path),
             "-filter_complex",
@@ -424,11 +442,23 @@ def generate_video_watermark(
             "-b:v",
             "0",  # 使用质量模式
             "-crf",
-            "30",  # 控制质量，越低质量越高
+            "38",  # 较高CRF值，720p博客用途足够，减少编码时间
+            "-deadline",
+            "realtime",  # 最快编码速度，适合资源受限服务器
+            "-cpu-used",
+            "5",  # 最快设置（0-5），减少CPU占用时间
+            "-tile-columns",
+            "0",  # 禁用tile列，减少内存
+            "-frame-parallel",
+            "0",  # 禁用帧并行，减少内存
+            "-auto-alt-ref",
+            "0",  # 禁用备用参考帧，减少内存
+            "-lag-in-frames",
+            "0",  # 禁用前瞻帧，减少内存占用
             "-c:a",
             "libopus",  # 音频编码 Opus
             "-b:a",
-            "64k",  # 音频码率
+            "48k",  # 降低音频码率
             "-y",  # 覆盖输出
             str(output_file),
         ]

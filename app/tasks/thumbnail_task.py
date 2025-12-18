@@ -133,6 +133,8 @@ def generate_video_thumbnail(
 
         command = [
             "ffmpeg",
+            "-threads",
+            "1",  # 限制线程数，减少内存占用（2GB RAM服务器）
             "-i",
             str(file_path),
             "-t",
@@ -146,11 +148,23 @@ def generate_video_thumbnail(
             "-b:v",
             "0",  # 使用质量模式
             "-crf",
-            "30",  # 控制质量，越低质量越高
+            "40",  # 缩略图用更高CRF值，体积更小
+            "-deadline",
+            "realtime",  # 最快编码速度
+            "-cpu-used",
+            "5",  # 最快设置，减少CPU占用时间
+            "-tile-columns",
+            "0",  # 禁用tile并行，减少内存
+            "-frame-parallel",
+            "0",  # 禁用帧并行，减少内存
+            "-auto-alt-ref",
+            "0",  # 禁用备用参考帧，减少内存
+            "-lag-in-frames",
+            "0",  # 禁用前瞻帧，减少内存占用
             "-c:a",
             "libopus",  # 音频编码 Opus
             "-b:a",
-            "64k",  # 音频码率
+            "32k",  # 缩略图用更低音频码率
             "-y",  # 覆盖输出
             str(output_file),
         ]
