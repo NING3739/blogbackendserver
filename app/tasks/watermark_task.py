@@ -349,11 +349,11 @@ def generate_video_watermark(
                 fcolor = f"0x{inv_r:02x}{inv_g:02x}{inv_b:02x}"
                 brightness = (0.299 * sr + 0.587 * sg + 0.114 * sb) / 255.0
                 if brightness >= 0.7:
-                    falpha = 0.20  # 亮背景，稍微明显
+                    falpha = 0.50  # 亮背景，水印更明显
                 elif brightness >= 0.4:
-                    falpha = 0.25  # 中等背景，适中透明度
+                    falpha = 0.60  # 中等背景，水印清晰可见
                 else:
-                    falpha = 0.30  # 暗背景，相对明显一点
+                    falpha = 0.70  # 暗背景，水印非常明显
         except Exception:
             # 如果采样失败，使用默认值
             pass
@@ -363,9 +363,9 @@ def generate_video_watermark(
             f"between(t,{start_time},{start_time + (duration if duration else 999999)})"
         )
 
-        # 计算720p缩放尺寸（保持宽高比，高度限制为720）
-        # 如果原始高度小于720，则不缩放
-        target_h = min(h, 720)
+        # 保持原始分辨率或限制为1080p（高质量）
+        # 如果原始高度大于1080，则缩放到1080p
+        target_h = min(h, 1080)
         # 确保宽度为偶数（H.264要求）
         scale_expr = f"scale=-2:{target_h}:flags=fast_bilinear"
 
@@ -406,13 +406,13 @@ def generate_video_watermark(
             "-c:v",
             "libx264",
             "-preset",
-            "ultrafast",  # 使用ultrafast以最快速度编码（在2GB RAM限制下）
+            "superfast",  # superfast 比 ultrafast 质量好，速度仍然很快
             "-crf",
-            "24",  # CRF 24 质量仍然很好，但编码更快
+            "23",  # CRF 23 平衡质量和文件大小
             "-profile:v",
-            "baseline",  # baseline profile 编码更快，兼容性更好
+            "main",  # main profile 质量更好，兼容性仍好
             "-level",
-            "3.1",  # 降低level以加快编码
+            "4.0",  # 支持1080p
             "-movflags",
             "+faststart",  # 优化网页播放
             "-pix_fmt",
@@ -420,7 +420,7 @@ def generate_video_watermark(
             "-c:a",
             "aac",
             "-b:a",
-            "96k",  # 降低音频码率以节省处理时间
+            "128k",  # 高质量音频
             "-ac",
             "2",  # 立体声
             "-ar",
