@@ -28,3 +28,6 @@ secret/*
 
 # certs
 certs/*
+
+# database
+alembic/versions/*

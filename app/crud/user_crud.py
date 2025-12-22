@@ -146,6 +146,7 @@ class UserCrud:
             order_by=[User.created_at.desc(), User.id.desc()],
             join_options=[selectinload(User.avatar)],
             language=language,
+            filters=[User.is_verified == True],
         )
 
         # 计算本月的用户数量

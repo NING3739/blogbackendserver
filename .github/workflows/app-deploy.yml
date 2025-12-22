@@ -491,7 +491,7 @@ jobs:
             # Auto-detect model changes and generate migration if needed
             echo "🔍 Checking for model changes..."
             AUTOGEN_OUTPUT=$(sudo docker exec server /server/.venv/bin/alembic revision --autogenerate -m "Auto migration $(date +%Y%m%d_%H%M%S)" 2>&1) || true
-            
+
             if echo "$AUTOGEN_OUTPUT" | grep -q "Generating"; then
               # New migration was generated
               GENERATED_FILE=$(echo "$AUTOGEN_OUTPUT" | grep -oE "/server/alembic/versions/[a-f0-9]+_.*\.py" | head -1)
